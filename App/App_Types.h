@@ -35,6 +35,15 @@ typedef enum
     APP_PDW_DIR_FRONT_LEFT
 } AppPdwDirection;
 
+typedef enum
+{
+    APP_AUTO_EXIT_CMD_NORMAL         = 0x00u,
+    APP_AUTO_EXIT_CMD_START_STRAIGHT = 0x01u,
+    APP_AUTO_EXIT_CMD_START_LEFT     = 0x02u,
+    APP_AUTO_EXIT_CMD_START_RIGHT    = 0x03u,
+    APP_AUTO_EXIT_CMD_STOP           = 0x04u
+} AppAutoExitCmd;
+
 //CAN 0x201 message 저장용 구조체
 typedef struct
 {
@@ -55,7 +64,7 @@ typedef struct
 //CAN 0x300 message 저장용 구조체
 typedef struct
 {
-    boolean autoParkingStart;
+    AppAutoExitCmd cmd;
 } AppAutoParkingState;
 
 //PDW 판단 ECU 상태값 -> 나중에 송신할 0x400 메시지 만들 때 StatusTxService에서 사용할 구조체

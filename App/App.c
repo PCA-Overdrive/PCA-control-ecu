@@ -3,7 +3,7 @@
 #include "App_PdwService.h"
 #include "App_StatusTxService.h"
 #include "App_DriveService.h"
-#include "App_AutoExitService.h"
+#include "App_AutoExitService/App_AutoExitService.h"
 #include "FreeRTOS.h"
 #include "task.h"
 

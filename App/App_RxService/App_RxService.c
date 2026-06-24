@@ -69,7 +69,32 @@ BaseType_t AppRxService_GetAutoParkingState(AppAutoParkingState *state)
         return pdFAIL;
     }
 
-    state->autoParkingStart = (rx.autoParkingStart != 0u) ? TRUE : FALSE;
+    switch(rx.autoParkingStart)
+    {
+        case 0x00u:
+            state->cmd = APP_AUTO_EXIT_CMD_NORMAL;
+            break;
+
+        case 0x01u:
+            state->cmd = APP_AUTO_EXIT_CMD_START_STRAIGHT;
+            break;
+
+        case 0x02u:
+            state->cmd = APP_AUTO_EXIT_CMD_START_LEFT;
+            break;
+
+        case 0x03u:
+            state->cmd = APP_AUTO_EXIT_CMD_START_RIGHT;
+            break;
+
+        case 0x04u:
+            state->cmd = APP_AUTO_EXIT_CMD_STOP;
+            break;
+
+        default:
+            state->cmd = APP_AUTO_EXIT_CMD_NORMAL;
+            break;
+    }
 
     return pdPASS;
 }
