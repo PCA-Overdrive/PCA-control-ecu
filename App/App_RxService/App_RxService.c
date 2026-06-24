@@ -2,7 +2,7 @@
 
 #include "App_Can.h"
 //0x201, 0x200, 0x300 메시지 각각 구조체에 저장
-
+//0x201 메시지 구조체를 AppRpiInputState 구조체로 변환
 BaseType_t AppRxService_GetRpiInput(AppRpiInputState *input)
 {
     VehicleStatusCmd_t rx;
@@ -24,7 +24,7 @@ BaseType_t AppRxService_GetRpiInput(AppRpiInputState *input)
 
     return pdPASS;
 }
-
+//0x200 메시지 구조체를 AppUltrasonicState 구조체로 변환
 BaseType_t AppRxService_GetUltrasonicState(AppUltrasonicState *state)
 {
     UltrasonicDistanceCmd_t rx;
