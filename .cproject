@@ -29,6 +29,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/App/App_Can}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/App/App_PdwService}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/App/App_RxService}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/App/App_DriveService}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/App/App_StatusTxService}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/Drivers/McmcanFd}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/Libraries/iLLD/TC37A/Tricore/Can}&quot;"/>
@@ -304,22 +305,7 @@
 		</cconfiguration>
 	</storageModule>
 	<storageModule moduleId="cdtBuildSystem" version="4.0.0">
-		<project id="iLLD_TC375_ADS_FreeRTOS.com.infineon.aurix.buildsystem.managed.projectType.521089847" name="AURIX Project" projectType="com.infineon.aurix.buildsystem.managed.projectType"/>
-	</storageModule>
-	<storageModule moduleId="scannerConfiguration">
-		<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
-		<scannerConfigBuildInfo instanceId="com.infineon.aurix.buildsystem.managed.external.gcc.configuration.debug.124054316;com.infineon.aurix.buildsystem.managed.external.gcc.configuration.debug.124054316.;com.infineon.aurix.buildsystem.managed.tool.cpp.compiler.522486274;com.infineon.aurix.buildsystem.managed.tool.cpp.compiler.inputType.366043895">
-			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
-		</scannerConfigBuildInfo>
-		<scannerConfigBuildInfo instanceId="com.infineon.aurix.buildsystem.managed.external.gcc.configuration.release.1530707206;com.infineon.aurix.buildsystem.managed.external.gcc.configuration.release.1530707206.;com.infineon.aurix.buildsystem.managed.tool.cpp.compiler.2092399118;com.infineon.aurix.buildsystem.managed.tool.cpp.compiler.inputType.550025854">
-			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
-		</scannerConfigBuildInfo>
-		<scannerConfigBuildInfo instanceId="com.infineon.aurix.buildsystem.managed.external.gcc.configuration.release.1530707206;com.infineon.aurix.buildsystem.managed.external.gcc.configuration.release.1530707206.;com.infineon.aurix.buildsystem.managed.tool.c.compiler.735587562;com.infineon.aurix.buildsystem.managed.tool.c.compiler.inputType.390472470">
-			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
-		</scannerConfigBuildInfo>
-		<scannerConfigBuildInfo instanceId="com.infineon.aurix.buildsystem.managed.external.gcc.configuration.debug.124054316;com.infineon.aurix.buildsystem.managed.external.gcc.configuration.debug.124054316.;com.infineon.aurix.buildsystem.managed.tool.c.compiler.487302087;com.infineon.aurix.buildsystem.managed.tool.c.compiler.inputType.1458946177">
-			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
-		</scannerConfigBuildInfo>
+		<project id="HA_Project3_DecisionECU.com.infineon.aurix.buildsystem.managed.projectType.1764095858" name="AURIX Project" projectType="com.infineon.aurix.buildsystem.managed.projectType"/>
 	</storageModule>
 	<storageModule moduleId="org.eclipse.cdt.core.LanguageSettingsProviders"/>
 	<storageModule moduleId="org.eclipse.cdt.core.language.mapping">
@@ -331,5 +317,21 @@
 		</project-mappings>
 	</storageModule>
 	<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
-	<storageModule moduleId="refreshScope"/>
+	<storageModule moduleId="refreshScope" versionNumber="2">
+		<configuration configurationName="TriCore Debug (TASKING)">
+			<resource resourceType="PROJECT" workspacePath="/HA_Project3_DecisionECU"/>
+		</configuration>
+		<configuration configurationName="TriCore Release (TASKING)">
+			<resource resourceType="PROJECT" workspacePath="/HA_Project3_DecisionECU"/>
+		</configuration>
+	</storageModule>
+	<storageModule moduleId="scannerConfiguration">
+		<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
+		<scannerConfigBuildInfo instanceId="com.infineon.aurix.buildsystem.managed.external.gcc.builtin.configuration.debug.1882414933;com.infineon.aurix.buildsystem.managed.external.gcc.builtin.configuration.debug.1882414933.;com.infineon.aurix.buildsystem.managed.tool.c.compiler.1133218849;com.infineon.aurix.buildsystem.managed.tool.c.compiler.inputType.1352301790">
+			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
+		</scannerConfigBuildInfo>
+		<scannerConfigBuildInfo instanceId="com.infineon.aurix.buildsystem.managed.external.gcc.builtin.configuration.release.1955468723;com.infineon.aurix.buildsystem.managed.external.gcc.builtin.configuration.release.1955468723.;com.infineon.aurix.buildsystem.managed.tool.c.compiler.480109237;com.infineon.aurix.buildsystem.managed.tool.c.compiler.inputType.1729664210">
+			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
+		</scannerConfigBuildInfo>
+	</storageModule>
 </cproject>
