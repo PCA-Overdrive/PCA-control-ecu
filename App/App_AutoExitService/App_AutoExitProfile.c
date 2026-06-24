@@ -1,8 +1,5 @@
 #include "App_AutoExitService_Internal.h"
 
-#define APP_AUTO_EXIT_ARRAY_COUNT(array) \
-    ((uint32)(sizeof(array) / sizeof((array)[0])))
-
 static const AppAutoExitMotionStep g_profileStraight[] =
 {
     { APP_AUTO_EXIT_DRIVE_FORWARD, APP_AUTO_EXIT_STEER_CENTER, APP_AUTO_EXIT_FORWARD_1_MS },

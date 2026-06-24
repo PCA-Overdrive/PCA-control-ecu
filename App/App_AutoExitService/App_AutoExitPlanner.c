@@ -12,12 +12,12 @@ typedef struct
     boolean isRearCloser;
 } AppAutoExitSideInfo;
 
-static boolean AppAutoExitPlanner_IsDistanceBelow(const AppUltrasonicState *ultrasonic,
-                                                  AppPdwDirection direction,
-                                                  uint16 thresholdMm)
+typedef struct
 {
-    return (ultrasonic->distanceMm[direction] < thresholdMm) ? TRUE : FALSE;
-}
+    AppAutoExitSideInfo exitSide;
+    AppAutoExitSideInfo oppositeSide;
+    uint16 exitFrontCornerMm;
+} AppAutoExitSideContext;
 
 static boolean AppAutoExitPlanner_IsAnyDistanceBelow(const AppUltrasonicState *ultrasonic,
                                                      const AppPdwDirection *directions,
@@ -28,9 +28,7 @@ static boolean AppAutoExitPlanner_IsAnyDistanceBelow(const AppUltrasonicState *u
 
     for(index = 0u; index < directionCount; index++)
     {
-        if(AppAutoExitPlanner_IsDistanceBelow(ultrasonic,
-                                              directions[index],
-                                              thresholdMm) == TRUE)
+        if(ultrasonic->distanceMm[directions[index]] < thresholdMm)
         {
             return TRUE;
         }
@@ -43,7 +41,7 @@ static AppAutoExitSideInfo AppAutoExitPlanner_MakeSideInfo(uint16 frontMm,
                                                            uint16 rearMm)
 {
     AppAutoExitSideInfo info;
-    sint16 diffMm;
+    sint32 diffMm;
 
     info.frontMm = frontMm;
     info.rearMm = rearMm;
@@ -51,14 +49,14 @@ static AppAutoExitSideInfo AppAutoExitPlanner_MakeSideInfo(uint16 frontMm,
     info.isSafe = ((frontMm > APP_AUTO_EXIT_SIDE_SAFE_MM) &&
                    (rearMm > APP_AUTO_EXIT_SIDE_SAFE_MM)) ? TRUE : FALSE;
 
-    diffMm = (sint16)frontMm - (sint16)rearMm;
+    diffMm = (sint32)frontMm - (sint32)rearMm;
 
-    if(diffMm < -(sint16)APP_AUTO_EXIT_SIDE_TILT_DIFF_MM)
+    if(diffMm < -(sint32)APP_AUTO_EXIT_SIDE_TILT_DIFF_MM)
     {
         info.isFrontCloser = TRUE;
         info.isRearCloser = FALSE;
     }
-    else if(diffMm > (sint16)APP_AUTO_EXIT_SIDE_TILT_DIFF_MM)
+    else if(diffMm > (sint32)APP_AUTO_EXIT_SIDE_TILT_DIFF_MM)
     {
         info.isFrontCloser = FALSE;
         info.isRearCloser = TRUE;
@@ -107,6 +105,39 @@ static AppAutoExitAvoidLevel AppAutoExitPlanner_GetAvoidLevel(const AppAutoExitS
     }
 
     return APP_AUTO_EXIT_AVOID_NONE;
+}
+
+static AppAutoExitSideContext AppAutoExitPlanner_MakeSideContext(const AppUltrasonicState *ultrasonic,
+                                                                 AppAutoExitDirection exitDirection)
+{
+    AppAutoExitSideContext context;
+
+    if(exitDirection == APP_AUTO_EXIT_DIR_LEFT)
+    {
+        context.exitSide = AppAutoExitPlanner_MakeSideInfo(
+            ultrasonic->distanceMm[APP_PDW_DIR_LEFT_FRONT],
+            ultrasonic->distanceMm[APP_PDW_DIR_LEFT_BEHIND]);
+
+        context.oppositeSide = AppAutoExitPlanner_MakeSideInfo(
+            ultrasonic->distanceMm[APP_PDW_DIR_RIGHT_FRONT],
+            ultrasonic->distanceMm[APP_PDW_DIR_RIGHT_BEHIND]);
+
+        context.exitFrontCornerMm = ultrasonic->distanceMm[APP_PDW_DIR_FRONT_LEFT];
+    }
+    else
+    {
+        context.exitSide = AppAutoExitPlanner_MakeSideInfo(
+            ultrasonic->distanceMm[APP_PDW_DIR_RIGHT_FRONT],
+            ultrasonic->distanceMm[APP_PDW_DIR_RIGHT_BEHIND]);
+
+        context.oppositeSide = AppAutoExitPlanner_MakeSideInfo(
+            ultrasonic->distanceMm[APP_PDW_DIR_LEFT_FRONT],
+            ultrasonic->distanceMm[APP_PDW_DIR_LEFT_BEHIND]);
+
+        context.exitFrontCornerMm = ultrasonic->distanceMm[APP_PDW_DIR_FRONT_RIGHT];
+    }
+
+    return context;
 }
 
 static void AppAutoExitPlanner_SetAvoidPlan(AppAutoExitAvoidPlan *avoidPlan,
@@ -183,10 +214,8 @@ AppAutoExitStrategy AppAutoExitPlanner_SelectStrategy(AppAutoExitDirection exitD
                                                       AppAutoExitAvoidPlan *avoidPlan)
 {
     AppUltrasonicState ultrasonic;
-    AppAutoExitSideInfo exitSide;
-    AppAutoExitSideInfo oppositeSide;
+    AppAutoExitSideContext sideContext;
     AppAutoExitAvoidLevel avoidLevel;
-    uint16 exitFrontCornerMm;
 
     AppAutoExitPlanner_SetAvoidPlan(avoidPlan, APP_AUTO_EXIT_AVOID_NONE);
 
@@ -200,50 +229,28 @@ AppAutoExitStrategy AppAutoExitPlanner_SelectStrategy(AppAutoExitDirection exitD
         return APP_AUTO_EXIT_STRATEGY_NORMAL;
     }
 
-    if(exitDirection == APP_AUTO_EXIT_DIR_LEFT)
-    {
-        exitSide = AppAutoExitPlanner_MakeSideInfo(
-            ultrasonic.distanceMm[APP_PDW_DIR_LEFT_FRONT],
-            ultrasonic.distanceMm[APP_PDW_DIR_LEFT_BEHIND]);
-
-        oppositeSide = AppAutoExitPlanner_MakeSideInfo(
-            ultrasonic.distanceMm[APP_PDW_DIR_RIGHT_FRONT],
-            ultrasonic.distanceMm[APP_PDW_DIR_RIGHT_BEHIND]);
-
-        exitFrontCornerMm = ultrasonic.distanceMm[APP_PDW_DIR_FRONT_LEFT];
-    }
-    else
-    {
-        exitSide = AppAutoExitPlanner_MakeSideInfo(
-            ultrasonic.distanceMm[APP_PDW_DIR_RIGHT_FRONT],
-            ultrasonic.distanceMm[APP_PDW_DIR_RIGHT_BEHIND]);
-
-        oppositeSide = AppAutoExitPlanner_MakeSideInfo(
-            ultrasonic.distanceMm[APP_PDW_DIR_LEFT_FRONT],
-            ultrasonic.distanceMm[APP_PDW_DIR_LEFT_BEHIND]);
-
-        exitFrontCornerMm = ultrasonic.distanceMm[APP_PDW_DIR_FRONT_RIGHT];
-    }
+    sideContext = AppAutoExitPlanner_MakeSideContext(&ultrasonic,
+                                                     exitDirection);
 
     if(ultrasonic.distanceMm[APP_PDW_DIR_FRONT] < APP_AUTO_EXIT_FRONT_BLOCKED_MM)
     {
         return APP_AUTO_EXIT_STRATEGY_BLOCKED;
     }
 
-    if(exitFrontCornerMm < APP_AUTO_EXIT_FRONT_BLOCKED_MM)
+    if(sideContext.exitFrontCornerMm < APP_AUTO_EXIT_FRONT_BLOCKED_MM)
     {
         return APP_AUTO_EXIT_STRATEGY_BLOCKED;
     }
 
-    avoidLevel = AppAutoExitPlanner_GetAvoidLevel(&exitSide);
+    avoidLevel = AppAutoExitPlanner_GetAvoidLevel(&sideContext.exitSide);
 
     if((avoidLevel == APP_AUTO_EXIT_AVOID_NONE) &&
-       (exitSide.isSafe == TRUE))
+       (sideContext.exitSide.isSafe == TRUE))
     {
         return APP_AUTO_EXIT_STRATEGY_NORMAL;
     }
 
-    if(oppositeSide.isSafe == TRUE)
+    if(sideContext.oppositeSide.isSafe == TRUE)
     {
         if(avoidLevel == APP_AUTO_EXIT_AVOID_NONE)
         {
@@ -277,6 +284,29 @@ uint8 AppAutoExitPlanner_GetRealignSteer(AppAutoExitDirection exitDirection)
     return APP_AUTO_EXIT_REALIGN_RIGHT_STEER;
 }
 
+static boolean AppAutoExitPlanner_IsAvoidSideDanger(const AppUltrasonicState *ultrasonic,
+                                                    AppPdwDirection sideFrontDirection,
+                                                    AppPdwDirection sideRearDirection,
+                                                    AppPdwDirection frontCornerDirection)
+{
+    if(ultrasonic->distanceMm[sideFrontDirection] < APP_AUTO_EXIT_SIDE_MIN_MM)
+    {
+        return TRUE;
+    }
+
+    if(ultrasonic->distanceMm[sideRearDirection] < APP_AUTO_EXIT_SIDE_MIN_MM)
+    {
+        return TRUE;
+    }
+
+    if(ultrasonic->distanceMm[frontCornerDirection] < APP_AUTO_EXIT_FRONT_HARD_STOP_MM)
+    {
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
 boolean AppAutoExitPlanner_IsOppositeSideDangerDuringAvoid(AppAutoExitDirection exitDirection)
 {
     AppUltrasonicState ultrasonic;
@@ -288,40 +318,16 @@ boolean AppAutoExitPlanner_IsOppositeSideDangerDuringAvoid(AppAutoExitDirection 
 
     if(exitDirection == APP_AUTO_EXIT_DIR_LEFT)
     {
-        if(ultrasonic.distanceMm[APP_PDW_DIR_RIGHT_FRONT] < APP_AUTO_EXIT_SIDE_MIN_MM)
-        {
-            return TRUE;
-        }
-
-        if(ultrasonic.distanceMm[APP_PDW_DIR_RIGHT_BEHIND] < APP_AUTO_EXIT_SIDE_MIN_MM)
-        {
-            return TRUE;
-        }
-
-        if(ultrasonic.distanceMm[APP_PDW_DIR_FRONT_RIGHT] < APP_AUTO_EXIT_FRONT_HARD_STOP_MM)
-        {
-            return TRUE;
-        }
-    }
-    else
-    {
-        if(ultrasonic.distanceMm[APP_PDW_DIR_LEFT_FRONT] < APP_AUTO_EXIT_SIDE_MIN_MM)
-        {
-            return TRUE;
-        }
-
-        if(ultrasonic.distanceMm[APP_PDW_DIR_LEFT_BEHIND] < APP_AUTO_EXIT_SIDE_MIN_MM)
-        {
-            return TRUE;
-        }
-
-        if(ultrasonic.distanceMm[APP_PDW_DIR_FRONT_LEFT] < APP_AUTO_EXIT_FRONT_HARD_STOP_MM)
-        {
-            return TRUE;
-        }
+        return AppAutoExitPlanner_IsAvoidSideDanger(&ultrasonic,
+                                                    APP_PDW_DIR_RIGHT_FRONT,
+                                                    APP_PDW_DIR_RIGHT_BEHIND,
+                                                    APP_PDW_DIR_FRONT_RIGHT);
     }
 
-    return FALSE;
+    return AppAutoExitPlanner_IsAvoidSideDanger(&ultrasonic,
+                                                APP_PDW_DIR_LEFT_FRONT,
+                                                APP_PDW_DIR_LEFT_BEHIND,
+                                                APP_PDW_DIR_FRONT_LEFT);
 }
 
 uint32 AppAutoExitPlanner_CalcFirstStepReductionMs(uint32 escapeMs,
