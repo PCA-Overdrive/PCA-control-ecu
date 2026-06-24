@@ -16,13 +16,15 @@
 
 static void AppStatusTxService_BuildDistanceLevel(DistanceLevelCmd_t *tx,
                                                   const AppPdwState *pdw,
-                                                  const AppRpiInputState *rpiInput);
+                                                  const AppRpiInputState *rpiInput,
+                                                  const AppUltrasonicState *ultrasonic);
 
 void AppStatusTxService_Task(void *arg)
 {
     DistanceLevelCmd_t tx; // 0x400 메시지 구조체
     AppPdwState pdw;
     AppRpiInputState rpiInput;
+    AppUltrasonicState ultrasonic;
     TickType_t lastWakeTime;
 
     (void)arg;
@@ -32,9 +34,10 @@ void AppStatusTxService_Task(void *arg)
     for(;;)
     {
         if((AppPdwService_GetState(&pdw) == pdPASS) &&
-           (AppRxService_GetRpiInput(&rpiInput) == pdPASS))
+           (AppRxService_GetRpiInput(&rpiInput) == pdPASS) &&
+           (AppRxService_GetUltrasonicState(&ultrasonic) == pdPASS))
         {
-            AppStatusTxService_BuildDistanceLevel(&tx, &pdw, &rpiInput);
+            AppStatusTxService_BuildDistanceLevel(&tx, &pdw, &rpiInput, &ultrasonic);
             (void)AppCan_SendDistanceLevel(&tx);
         }
 
@@ -44,9 +47,10 @@ void AppStatusTxService_Task(void *arg)
 
 static void AppStatusTxService_BuildDistanceLevel(DistanceLevelCmd_t *tx,
                                                   const AppPdwState *pdw,
-                                                  const AppRpiInputState *rpiInput)
+                                                  const AppRpiInputState *rpiInput,
+                                                  const AppUltrasonicState *ultrasonic)
 {
-    if((tx == NULL) || (pdw == NULL) || (rpiInput == NULL))
+    if((tx == NULL) || (pdw == NULL) || (rpiInput == NULL) || (ultrasonic == NULL))
     {
         return;
     }
@@ -63,7 +67,7 @@ static void AppStatusTxService_BuildDistanceLevel(DistanceLevelCmd_t *tx,
     tx->frontLeftLevel = (uint8)pdw->level[APP_PDW_DIR_FRONT_LEFT];
 
     tx->emergencyStop = (pdw->enabled == TRUE) ? 1u : 0u;
-    tx->vehicleSpeed = rpiInput->driveCmd;
+    tx->vehicleSpeed = ultrasonic->vehicleSpeed;
     tx->gearStatus = (uint8)rpiInput->gear;
     tx->collisionAlarm = (pdw->dangerDetected == TRUE) ? 1u : 0u;
 }
