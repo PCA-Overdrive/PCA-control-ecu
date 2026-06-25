@@ -18,7 +18,7 @@ typedef struct
      */
     AppAutoExitStatus status;
 
-    /* COMPLETE 또는 STOPPED 상태가 된 시점
+    /* COMPLETE / STOPPED / BLOCKED 상태가 된 시점
      * 결과 상태를 일정 시간 유지한 뒤 IDLE로 되돌리기 위해 사용
      */
     TickType_t resultStartTick;
@@ -58,36 +58,6 @@ typedef struct
 static AppAutoExitMonitorContext g_monitor;
 
 /*
- * startTick 이후 durationMs가 지났는지 확인
- */
-static boolean AppAutoExitMonitor_HasElapsed(TickType_t startTick,
-                                             uint32 durationMs)
-{
-    TickType_t nowTick;
-
-    nowTick = xTaskGetTickCount();
-
-    return ((nowTick - startTick) >= pdMS_TO_TICKS(durationMs)) ? TRUE : FALSE;
-}
-
-/*
- * 결과 상태인지 확인
- *
- * COMPLETE / STOPPED는 일정 시간 동안 0x401로 유지해서 보내고,
- * 시간이 지나면 IDLE로 되돌린다.
- */
-static boolean AppAutoExitMonitor_IsResultStatus(AppAutoExitStatus status)
-{
-    if((status == APP_AUTO_EXIT_STATUS_COMPLETE) ||
-       (status == APP_AUTO_EXIT_STATUS_STOPPED))
-    {
-        return TRUE;
-    }
-
-    return FALSE;
-}
-
-/*
  * yaw 각도를 -180 ~ +180 범위로 정규화
  *
  * 예:
@@ -108,30 +78,6 @@ static sint16 AppAutoExitMonitor_NormalizeYawDeg(sint16 yawDeg)
 
     return yawDeg;
 }
-
-/*
- * 목표 yaw와 현재 yaw의 차이를 계산
- *
- * 단순 target - current를 하면 180/-180 경계에서 오차가 커질 수 있으므로
- * NormalizeYawDeg()를 통해 -180 ~ +180 범위의 실제 회전 오차로 변환한다.
- */
-static sint16 AppAutoExitMonitor_CalcYawErrorToTargetDeg(sint16 targetYawDeg,
-                                                         sint16 currentYawDeg)
-{
-    return AppAutoExitMonitor_NormalizeYawDeg((sint16)(targetYawDeg - currentYawDeg));
-}
-
-#if (APP_AUTO_EXIT_YAW_VALIDATION_ENABLE != 0u)
-/*
- * sint16 절댓값 계산
- *
- * yaw 오차가 허용 범위 안인지 볼 때 사용한다.
- */
-static sint16 AppAutoExitMonitor_AbsSint16(sint16 value)
-{
-    return (value < 0) ? (sint16)(-value) : value;
-}
-#endif
 
 /*
  * 출차 방향과 lineAngle을 이용해 목표 회전 각도를 계산
@@ -237,9 +183,10 @@ static void AppAutoExitMonitor_CaptureEndYaw(void)
        (AppRxService_GetUltrasonicState(&ultrasonic) == pdPASS))
     {
         g_monitor.endYawDeg = ultrasonic.imuYaw;
+
         g_monitor.yawErrorDeg =
-            AppAutoExitMonitor_CalcYawErrorToTargetDeg(g_monitor.targetYawDeg,
-                                                       g_monitor.endYawDeg);
+            AppAutoExitMonitor_NormalizeYawDeg(
+                (sint16)(g_monitor.targetYawDeg - g_monitor.endYawDeg));
     }
     else
     {
@@ -247,82 +194,6 @@ static void AppAutoExitMonitor_CaptureEndYaw(void)
          * IMU 값을 읽지 못하면 yaw 기반 완료 검증은 불가능하므로 invalid 처리
          */
         g_monitor.yawValid = FALSE;
-    }
-}
-
-/*
- * yaw 기준으로 자동출차 완료가 유효한지 판단
- *
- * APP_AUTO_EXIT_YAW_VALIDATION_ENABLE이 0이면
- * yaw 검증 없이 항상 성공으로 본다.
- */
-static boolean AppAutoExitMonitor_IsYawCompletionValid(void)
-{
-#if (APP_AUTO_EXIT_YAW_VALIDATION_ENABLE == 0u)
-    return TRUE;
-#else
-    sint16 absYawErrorDeg;
-
-    if(g_monitor.yawValid == FALSE)
-    {
-        return FALSE;
-    }
-
-    absYawErrorDeg = AppAutoExitMonitor_AbsSint16(g_monitor.yawErrorDeg);
-
-    return (absYawErrorDeg <= APP_AUTO_EXIT_YAW_TARGET_TOL_DEG) ? TRUE : FALSE;
-#endif
-}
-
-/*
- * COMPLETE / STOPPED 상태를 일정 시간 유지한 뒤 IDLE로 되돌림
- *
- * 결과 상태를 바로 IDLE로 바꾸면 RPi가 완료/정지 상태를 못 볼 수 있기 때문에,
- * APP_AUTO_EXIT_RESULT_HOLD_MS 동안 결과 상태를 유지한다.
- */
-static void AppAutoExitMonitor_ClearExpiredResult(void)
-{
-    if(AppAutoExitMonitor_IsResultStatus(g_monitor.status) == FALSE)
-    {
-        return;
-    }
-
-    if(AppAutoExitMonitor_HasElapsed(g_monitor.resultStartTick,
-                                     APP_AUTO_EXIT_RESULT_HOLD_MS) == TRUE)
-    {
-        g_monitor.status = APP_AUTO_EXIT_STATUS_IDLE;
-    }
-}
-
-/*
- * 0x401 ExitComplete 메시지 송신
- *
- * 현재 자동출차 상태를 RPi 또는 외부 노드에 알려준다.
- */
-static void AppAutoExitMonitor_SendStatus(AppAutoExitStatus status)
-{
-    ExitCompleteCmd_t tx;
-
-    tx.autoparkingStatus = (uint8)status;
-
-    (void)AppCan_SendExitComplete(&tx);
-}
-
-/*
- * 자동출차 상태 0x401 주기 송신 처리
- *
- * APP_AUTO_EXIT_STATUS_TX_PERIOD_MS 주기마다 현재 상태를 보낸다.
- */
-static void AppAutoExitMonitor_ServiceStatusTx(void)
-{
-    TickType_t nowTick;
-
-    nowTick = xTaskGetTickCount();
-
-    if((nowTick - g_monitor.lastStatusTxTick) >= pdMS_TO_TICKS(APP_AUTO_EXIT_STATUS_TX_PERIOD_MS))
-    {
-        AppAutoExitMonitor_SendStatus(g_monitor.status);
-        g_monitor.lastStatusTxTick = nowTick;
     }
 }
 
@@ -395,9 +266,7 @@ void AppAutoExitMonitor_Start(AppAutoExitDirection direction)
                                                 direction,
                                                 g_monitor.targetTurnDeg);
 
-        g_monitor.yawErrorDeg =
-            AppAutoExitMonitor_CalcYawErrorToTargetDeg(g_monitor.targetYawDeg,
-                                                       g_monitor.endYawDeg);
+        g_monitor.yawErrorDeg = AppAutoExitMonitor_NormalizeYawDeg((sint16)(g_monitor.targetYawDeg - g_monitor.endYawDeg));
     }
 }
 
@@ -409,12 +278,13 @@ void AppAutoExitMonitor_Start(AppAutoExitDirection direction)
 void AppAutoExitMonitor_SetIdle(void)
 {
     g_monitor.status = APP_AUTO_EXIT_STATUS_IDLE;
+    g_monitor.resultStartTick = 0u;
 }
 
 /*
  * 자동출차 결과 상태 설정
  *
- * COMPLETE 또는 STOPPED 같은 결과 상태를 설정하고,
+ * COMPLETE / STOPPED / BLOCKED 같은 결과 상태를 설정하고,
  * 그 상태를 일정 시간 유지하기 위해 시작 tick을 저장한다.
  */
 void AppAutoExitMonitor_SetResult(AppAutoExitStatus status)
@@ -431,9 +301,29 @@ void AppAutoExitMonitor_SetResult(AppAutoExitStatus status)
  */
 boolean AppAutoExitMonitor_FinishAndValidate(void)
 {
+#if (APP_AUTO_EXIT_YAW_VALIDATION_ENABLE != 0u)
+    sint16 absYawErrorDeg;
+#endif
+
     AppAutoExitMonitor_CaptureEndYaw();
 
-    return AppAutoExitMonitor_IsYawCompletionValid();
+#if (APP_AUTO_EXIT_YAW_VALIDATION_ENABLE == 0u)
+    return TRUE;
+#else
+    if(g_monitor.yawValid == FALSE)
+    {
+        return FALSE;
+    }
+
+    absYawErrorDeg = g_monitor.yawErrorDeg;
+
+    if(absYawErrorDeg < 0)
+    {
+        absYawErrorDeg = (sint16)(-absYawErrorDeg);
+    }
+
+    return (absYawErrorDeg <= APP_AUTO_EXIT_YAW_TARGET_TOL_DEG) ? TRUE : FALSE;
+#endif
 }
 
 /*
@@ -443,16 +333,53 @@ boolean AppAutoExitMonitor_FinishAndValidate(void)
  *
  * 역할:
  *  1. IN_PROGRESS 상태이면 현재 yaw 계속 갱신
- *  2. COMPLETE / STOPPED 결과 상태가 오래 유지되면 IDLE로 복귀
+ *  2. COMPLETE / STOPPED / BLOCKED 결과 상태가 오래 유지되면 IDLE로 복귀
  *  3. 0x401 상태 메시지 주기 송신
  */
 void AppAutoExitMonitor_Service(void)
 {
+    TickType_t nowTick;
+    ExitCompleteCmd_t tx;
+
+    nowTick = xTaskGetTickCount();
+
+    /*
+     * 자동출차 진행 중이면 현재 yaw를 계속 갱신한다.
+     */
     if(g_monitor.status == APP_AUTO_EXIT_STATUS_IN_PROGRESS)
     {
         AppAutoExitMonitor_CaptureEndYaw();
     }
 
-    AppAutoExitMonitor_ClearExpiredResult();
-    AppAutoExitMonitor_ServiceStatusTx();
+    /*
+     * 결과 상태를 일정 시간 유지한 뒤 IDLE로 되돌린다.
+     *
+     * 주의:
+     * 기존 코드에서는 COMPLETE / STOPPED만 결과 상태로 봤다.
+     * 그런데 EnterBlocked()에서도 APP_AUTO_EXIT_STATUS_BLOCKED를 설정하므로,
+     * BLOCKED도 일정 시간 뒤 IDLE로 되돌리는 것이 자연스럽다.
+     */
+    if((g_monitor.status == APP_AUTO_EXIT_STATUS_COMPLETE) ||
+       (g_monitor.status == APP_AUTO_EXIT_STATUS_STOPPED) ||
+       (g_monitor.status == APP_AUTO_EXIT_STATUS_BLOCKED))
+    {
+        if((nowTick - g_monitor.resultStartTick) >=
+           pdMS_TO_TICKS(APP_AUTO_EXIT_RESULT_HOLD_MS))
+        {
+            g_monitor.status = APP_AUTO_EXIT_STATUS_IDLE;
+        }
+    }
+
+    /*
+     * 0x401 상태 메시지 주기 송신
+     */
+    if((nowTick - g_monitor.lastStatusTxTick) >=
+       pdMS_TO_TICKS(APP_AUTO_EXIT_STATUS_TX_PERIOD_MS))
+    {
+        tx.autoparkingStatus = (uint8)g_monitor.status;
+
+        (void)AppCan_SendExitComplete(&tx);
+
+        g_monitor.lastStatusTxTick = nowTick;
+    }
 }

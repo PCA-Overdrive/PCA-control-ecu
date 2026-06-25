@@ -78,25 +78,19 @@ typedef struct
     uint32 firstStepReductionMs;
 } AppAutoExitProfileRuntime;
 
-/*
- * 회피 동작 실행 상태
- *
- * AVOID_AND_RESUME 전략일 때 사용된다.
- *
- * 회피 흐름:
- *  1. escape: 출차 반대 방향으로 살짝 이동
- *  2. stop
- *  3. realign: 다시 원래 출차 방향으로 정렬
- *  4. stop
- *  5. 기존 출차 profile 재개
- */
 typedef struct
 {
-    /* escape 동작 목표 시간 */
-    uint32 escapeMs;
-
-    /* realign 동작 목표 시간 */
-    uint32 realignMs;
+    /*
+     * Planner가 계산한 회피 계획
+     *
+     * plan 안에는:
+     *  - escapeMs
+     *  - realignMs
+     *  - escapeSteerCmd
+     *  - realignSteerCmd
+     * 가 들어간다.
+     */
+    AppAutoExitAvoidPlan plan;
 
     /* escape 시작 tick */
     TickType_t escapeStartTick;
@@ -110,7 +104,6 @@ typedef struct
      */
     uint32 escapeElapsedMs;
 } AppAutoExitAvoidRuntime;
-
 /*
  * 자동출차 서비스 전체 context
  *
@@ -183,8 +176,11 @@ static void AppAutoExitService_ResetProfile(void)
  */
 static void AppAutoExitService_ResetAvoidPlan(void)
 {
-    g_autoExit.avoid.escapeMs = 0u;
-    g_autoExit.avoid.realignMs = 0u;
+    g_autoExit.avoid.plan.escapeMs = 0u;
+    g_autoExit.avoid.plan.realignMs = 0u;
+    g_autoExit.avoid.plan.escapeSteerCmd = APP_AUTO_EXIT_STEER_CENTER;
+    g_autoExit.avoid.plan.realignSteerCmd = APP_AUTO_EXIT_STEER_CENTER;
+
     g_autoExit.avoid.escapeStartTick = 0u;
     g_autoExit.avoid.realignStartTick = 0u;
     g_autoExit.avoid.escapeElapsedMs = 0u;
@@ -301,15 +297,16 @@ static void AppAutoExitService_StopProfile(void)
 }
 
 /*
- * 특정 motion profile 실행 시작
- *
- * profile 배열과 step 개수를 받아
- * 첫 번째 step부터 실행을 시작한다.
+ * 출차 방향에 맞는 profile을 가져와 실행 시작
  */
-static void AppAutoExitService_StartProfile(const AppAutoExitMotionStep *profile,
-                                            uint32 profileCount,
-                                            uint32 firstStepReductionMs)
+static void AppAutoExitService_StartProfileForDirection(AppAutoExitDirection direction,
+                                                        uint32 firstStepReductionMs)
 {
+    const AppAutoExitMotionStep *profile;
+    uint32 profileCount;
+
+    profile = AppAutoExitProfile_Get(direction, &profileCount);
+
     /*
      * profile이 없거나 step 개수가 0이면
      * 실행할 수 없으므로 BLOCKED 처리
@@ -334,19 +331,6 @@ static void AppAutoExitService_StartProfile(const AppAutoExitMotionStep *profile
      */
     AppAutoExitService_SetCommand(g_autoExit.profile.steps[0].driveCmd,
                                   g_autoExit.profile.steps[0].steeringCmd);
-}
-
-/*
- * 출차 방향에 맞는 profile을 가져와 실행 시작
- */
-static void AppAutoExitService_StartProfileForDirection(AppAutoExitDirection direction,
-                                                        uint32 firstStepReductionMs)
-{
-    const AppAutoExitMotionStep *profile;
-    uint32 profileCount;
-
-    profile = AppAutoExitProfile_Get(direction, &profileCount);
-    AppAutoExitService_StartProfile(profile, profileCount, firstStepReductionMs);
 }
 
 /*
@@ -478,7 +462,7 @@ static void AppAutoExitService_StartAvoidEscape(void)
     g_autoExit.state = APP_AUTO_EXIT_STATE_AVOID_ESCAPE;
 
     AppAutoExitService_SetCommand(APP_AUTO_EXIT_DRIVE_FORWARD,
-                                  AppAutoExitPlanner_GetEscapeSteer(g_autoExit.direction));
+                                  g_autoExit.avoid.plan.escapeSteerCmd);
 }
 
 static void AppAutoExitService_AdjustRealignTimeByEscapeElapsed(void)
@@ -488,8 +472,8 @@ static void AppAutoExitService_AdjustRealignTimeByEscapeElapsed(void)
     uint32 actualEscapeMs;
     uint32 scaledRealignMs;
 
-    plannedEscapeMs = g_autoExit.avoid.escapeMs;
-    plannedRealignMs = g_autoExit.avoid.realignMs;
+    plannedEscapeMs = g_autoExit.avoid.plan.escapeMs;
+    plannedRealignMs = g_autoExit.avoid.plan.realignMs;
     actualEscapeMs = g_autoExit.avoid.escapeElapsedMs;
 
     /*
@@ -542,7 +526,7 @@ static void AppAutoExitService_AdjustRealignTimeByEscapeElapsed(void)
         scaledRealignMs = plannedRealignMs;
     }
 
-    g_autoExit.avoid.realignMs = scaledRealignMs;
+    g_autoExit.avoid.plan.realignMs = scaledRealignMs;
 }
 
 /*
@@ -580,7 +564,7 @@ static void AppAutoExitService_StartAvoidRealign(void)
     g_autoExit.state = APP_AUTO_EXIT_STATE_AVOID_REALIGN;
 
     AppAutoExitService_SetCommand(APP_AUTO_EXIT_DRIVE_FORWARD,
-                                  AppAutoExitPlanner_GetRealignSteer(g_autoExit.direction));
+                                  g_autoExit.avoid.plan.realignSteerCmd);
 }
 
 /*
@@ -596,22 +580,6 @@ static void AppAutoExitService_FinishAvoidRealign(void)
 
     AppAutoExitService_SetCommand(APP_AUTO_EXIT_DRIVE_STOP,
                                   APP_AUTO_EXIT_STEER_CENTER);
-}
-
-/*
- * Planner가 계산한 회피 계획을 service context에 저장
- */
-static void AppAutoExitService_ApplyAvoidPlan(const AppAutoExitAvoidPlan *avoidPlan)
-{
-    if(avoidPlan == 0)
-    {
-        g_autoExit.avoid.escapeMs = 0u;
-        g_autoExit.avoid.realignMs = 0u;
-        return;
-    }
-
-    g_autoExit.avoid.escapeMs = avoidPlan->escapeMs;
-    g_autoExit.avoid.realignMs = avoidPlan->realignMs;
 }
 
 /*
@@ -668,11 +636,38 @@ static void AppAutoExitService_StartAutoExit(AppAutoExitDirection direction)
 }
 
 /*
- * 회피 없이 기본 출차 profile 시작
+ * 회피 동작을 수행한 뒤,
+ * 기존 출차 profile의 첫 번째 전진 시간을 얼마나 줄일지 계산
+ *
+ * 이유:
+ *  - AVOID_ESCAPE와 AVOID_REALIGN 중에도 차량이 어느 정도 전진함
+ *  - 그 상태에서 기존 첫 번째 FORWARD step을 그대로 수행하면
+ *    너무 많이 앞으로 나갈 수 있음
+ *
+ * 계산:
+ *  - 실제 escape 시간의 일부 비율
+ *  - realign 시간의 일부 비율
+ * 을 더해서 첫 번째 전진 step 감소량으로 사용한다.
  */
-static void AppAutoExitService_StartNormalExitProfile(void)
+static uint32 AppAutoExitService_CalcFirstStepReductionMs(uint32 escapeMs,
+                                                          uint32 realignMs)
 {
-    AppAutoExitService_StartProfileForDirection(g_autoExit.direction, 0u);
+    uint32 reductionMs;
+
+    reductionMs =
+        ((escapeMs * APP_AUTO_EXIT_AVOID_ESCAPE_FORWARD_RATIO_PERCENT) / 100u) +
+        ((realignMs * APP_AUTO_EXIT_AVOID_REALIGN_FORWARD_RATIO_PERCENT) / 100u);
+
+    /*
+     * 감소량이 첫 번째 전진 시간보다 크거나 같으면,
+     * 첫 번째 step이 완전히 사라지지 않도록 최소 시간만 남긴다.
+     */
+    if(reductionMs >= APP_AUTO_EXIT_FORWARD_1_MS)
+    {
+        return APP_AUTO_EXIT_FORWARD_1_MS - APP_AUTO_EXIT_MIN_STEP_MS;
+    }
+
+    return reductionMs;
 }
 
 /*
@@ -686,11 +681,9 @@ static void AppAutoExitService_StartResumeExitProfile(void)
     uint32 firstStepReductionMs;
 
     firstStepReductionMs =
-        AppAutoExitPlanner_CalcFirstStepReductionMs(g_autoExit.avoid.escapeElapsedMs,
-                                                    g_autoExit.avoid.realignMs);
+        AppAutoExitService_CalcFirstStepReductionMs(g_autoExit.avoid.escapeElapsedMs, g_autoExit.avoid.plan.realignMs);
 
-    AppAutoExitService_StartProfileForDirection(g_autoExit.direction,
-                                                firstStepReductionMs);
+    AppAutoExitService_StartProfileForDirection(g_autoExit.direction, firstStepReductionMs);
 }
 
 /*
@@ -730,11 +723,11 @@ static void AppAutoExitService_ServiceState(void)
              */
             strategy = AppAutoExitPlanner_SelectStrategy(g_autoExit.direction,
                                                          &avoidPlan);
-            AppAutoExitService_ApplyAvoidPlan(&avoidPlan);
+            g_autoExit.avoid.plan = avoidPlan;
 
             if(strategy == APP_AUTO_EXIT_STRATEGY_NORMAL)
             {
-                AppAutoExitService_StartNormalExitProfile();
+                AppAutoExitService_StartProfileForDirection(g_autoExit.direction, 0u);
             }
             else if(strategy == APP_AUTO_EXIT_STRATEGY_AVOID_AND_RESUME)
             {
@@ -747,30 +740,48 @@ static void AppAutoExitService_ServiceState(void)
             break;
 
         case APP_AUTO_EXIT_STATE_AVOID_ESCAPE:
+        {
+            AppAutoExitAvoidObstacleState obstacleState;
+
+            obstacleState =
+                AppAutoExitPlanner_GetAvoidObstacleState(
+                    g_autoExit.direction,
+                    APP_AUTO_EXIT_AVOID_PHASE_ESCAPE);
+
             /*
-             * DANGER는 최소 escape 시간을 기다리지 않는다.
-             * 이미 너무 가까운 상태이므로 더 이상 escape 방향으로 밀지 않고
-             * 즉시 STOP_1 → REALIGN으로 넘어간다.
-             *
-             * NEAR는 DANGER 전 단계이므로 최소 escape 시간 이후에만
-             * 조기 realign 조건으로 사용한다.
+             * ESCAPE 중 DANGER:
+             * - 최소 escape 시간을 기다리지 않는다.
+             * - 더 밀면 위험하므로 즉시 escape를 끝내고 realign으로 넘어간다.
              */
-            if(AppAutoExitPlanner_IsEscapeSideDangerDuringAvoid(g_autoExit.direction) == TRUE)
+            if(obstacleState == APP_AUTO_EXIT_AVOID_OBSTACLE_DANGER)
             {
                 AppAutoExitService_FinishAvoidEscape();
             }
+            /*
+             * ESCAPE 중 NEAR:
+             * - DANGER 전 단계이므로 조기 종료 대상
+             * - 단, escape 시작 직후 바로 끝나는 것을 막기 위해 최소 시간은 보장한다.
+             */
             else if((AppAutoExitService_HasElapsed(g_autoExit.avoid.escapeStartTick,
                                                    APP_AUTO_EXIT_AVOID_ESCAPE_MIN_MS) == TRUE) &&
-                    (AppAutoExitPlanner_ShouldFinishEscapeDuringAvoid(g_autoExit.direction) == TRUE))
+                    (obstacleState == APP_AUTO_EXIT_AVOID_OBSTACLE_NEAR))
             {
                 AppAutoExitService_FinishAvoidEscape();
             }
+            /*
+             * 장애물이 가까워지지 않아도 계획된 escape 시간이 끝나면 realign으로 간다.
+             */
             else if(AppAutoExitService_HasElapsed(g_autoExit.avoid.escapeStartTick,
-                                                  g_autoExit.avoid.escapeMs) == TRUE)
+                                                  g_autoExit.avoid.plan.escapeMs) == TRUE)
             {
                 AppAutoExitService_FinishAvoidEscape();
+            }
+            else
+            {
+                /* Keep escaping */
             }
             break;
+        }
 
         case APP_AUTO_EXIT_STATE_AVOID_STOP_1:
             /*
@@ -785,26 +796,30 @@ static void AppAutoExitService_ServiceState(void)
             break;
 
         case APP_AUTO_EXIT_STATE_AVOID_REALIGN:
+        {
+            AppAutoExitAvoidObstacleState obstacleState;
+
+            obstacleState = AppAutoExitPlanner_GetAvoidObstacleState(g_autoExit.direction, APP_AUTO_EXIT_AVOID_PHASE_REALIGN);
+
             /*
-             * AVOID_REALIGN은 escape 후 다시 원래 출차 방향으로 정렬하는 단계다.
-             *
-             * 이 상태에서는 NEAR 이상이라고 조기 종료하지 않는다.
-             * NEAR는 정렬 과정에서 자연스럽게 발생할 수 있고,
-             * 여기서 realign을 끝내면 정렬이 부족한 상태로 profile을 재개할 수 있다.
-             *
-             * 단, 원래 출차 방향이 DANGER이면 더 진행하면 위험하므로
-             * BLOCKED로 전환한다.
+             * REALIGN 중에는 NEAR를 조기 종료 조건으로 쓰지 않는다.
+             * DANGER일 때만 BLOCKED로 간다.
              */
-            if(AppAutoExitPlanner_IsRealignSideDangerDuringAvoid(g_autoExit.direction) == TRUE)
+            if(obstacleState == APP_AUTO_EXIT_AVOID_OBSTACLE_DANGER)
             {
                 AppAutoExitService_EnterBlocked();
             }
             else if(AppAutoExitService_HasElapsed(g_autoExit.avoid.realignStartTick,
-                                                  g_autoExit.avoid.realignMs) == TRUE)
+                                                  g_autoExit.avoid.plan.realignMs) == TRUE)
             {
                 AppAutoExitService_FinishAvoidRealign();
             }
+            else
+            {
+                /* Keep realigning */
+            }
             break;
+        }
 
         case APP_AUTO_EXIT_STATE_AVOID_STOP_2:
             /*

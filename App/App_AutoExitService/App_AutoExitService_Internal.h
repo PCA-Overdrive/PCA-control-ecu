@@ -12,17 +12,7 @@ boolean AppAutoExitPlanner_IsStepSafetyDanger(const AppAutoExitMotionStep *step)
 AppAutoExitStrategy AppAutoExitPlanner_SelectStrategy(AppAutoExitDirection exitDirection,
                                                       AppAutoExitAvoidPlan *avoidPlan);
 
-uint8 AppAutoExitPlanner_GetEscapeSteer(AppAutoExitDirection exitDirection);
-uint8 AppAutoExitPlanner_GetRealignSteer(AppAutoExitDirection exitDirection);
-
-boolean AppAutoExitPlanner_ShouldFinishEscapeDuringAvoid(AppAutoExitDirection exitDirection);
-
-boolean AppAutoExitPlanner_IsRealignSideDangerDuringAvoid(AppAutoExitDirection exitDirection);
-
-uint32 AppAutoExitPlanner_CalcFirstStepReductionMs(uint32 escapeMs,
-                                                   uint32 realignMs);
-
-boolean AppAutoExitPlanner_IsEscapeSideDangerDuringAvoid(AppAutoExitDirection exitDirection);
+AppAutoExitAvoidObstacleState AppAutoExitPlanner_GetAvoidObstacleState(AppAutoExitDirection exitDirection, AppAutoExitAvoidPhase phase);
 
 void AppAutoExitMonitor_Init(void);
 void AppAutoExitMonitor_Start(AppAutoExitDirection direction);

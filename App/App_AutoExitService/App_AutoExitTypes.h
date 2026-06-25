@@ -55,6 +55,22 @@ typedef struct
 {
     uint32 escapeMs;
     uint32 realignMs;
+
+    uint8 escapeSteerCmd;
+    uint8 realignSteerCmd;
 } AppAutoExitAvoidPlan;
+
+typedef enum
+{
+    APP_AUTO_EXIT_AVOID_PHASE_ESCAPE = 0,
+    APP_AUTO_EXIT_AVOID_PHASE_REALIGN
+} AppAutoExitAvoidPhase;
+
+typedef enum
+{
+    APP_AUTO_EXIT_AVOID_OBSTACLE_CLEAR = 0,
+    APP_AUTO_EXIT_AVOID_OBSTACLE_NEAR,
+    APP_AUTO_EXIT_AVOID_OBSTACLE_DANGER
+} AppAutoExitAvoidObstacleState;
 
 #endif /* APP_AUTO_EXIT_TYPES_H */
