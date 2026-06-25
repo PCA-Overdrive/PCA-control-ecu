@@ -678,33 +678,28 @@ static void AppAutoExitService_ServiceState(void)
 
         case APP_AUTO_EXIT_STATE_AVOID_ESCAPE:
             /*
-             * 회피 escape 중에는 반대편이 DANGER인지 계속 확인한다.
+             * AVOID_ESCAPE 중에는 회피 방향이 DANGER가 될 때까지 기다리면 늦다.
+             *
+             * 양옆에 차량이 있는 상황에서는 반대 방향으로 피하다가
+             * 회피 방향 센서가 DANGER가 될 수 있다.
+             * 이때 BLOCKED로 멈추면 정상적인 출차 상황에서도 출차가 중단된다.
+             *
+             * 따라서 최소 escape 시간은 보장하되,
+             * 그 이후 회피 방향이 NEAR 이상이면 DANGER가 되기 전에
+             * escape를 조기 종료하고 STOP_1 → REALIGN으로 넘어간다.
              */
-            if(AppAutoExitPlanner_IsOppositeSideDangerDuringAvoid(g_autoExit.direction) == TRUE)
+            if((AppAutoExitService_HasElapsed(g_autoExit.avoid.escapeStartTick,
+                                              APP_AUTO_EXIT_AVOID_ESCAPE_MIN_MS) == TRUE) &&
+               (AppAutoExitPlanner_ShouldFinishEscapeDuringAvoid(g_autoExit.direction) == TRUE))
             {
-                /*
-                 * 최소 회피 시간도 못 채웠는데 반대편이 위험하면
-                 * 더 진행하기 어렵다고 보고 BLOCKED
-                 */
-                if(AppAutoExitService_HasElapsed(g_autoExit.avoid.escapeStartTick,
-                                                 APP_AUTO_EXIT_AVOID_ESCAPE_MIN_MS) == FALSE)
-                {
-                    AppAutoExitService_EnterBlocked();
-                }
-                else
-                {
-                    /*
-                     * 최소 회피 시간은 채웠다면
-                     * escape를 조기 종료하고 다음 단계로 넘어간다.
-                     */
-                    AppAutoExitService_FinishAvoidEscape();
-                }
+                AppAutoExitService_FinishAvoidEscape();
             }
             else if(AppAutoExitService_HasElapsed(g_autoExit.avoid.escapeStartTick,
                                                   g_autoExit.avoid.escapeMs) == TRUE)
             {
                 /*
-                 * 목표 escape 시간이 끝났으면 escape 종료
+                 * 회피 방향이 NEAR 이상이 되지 않아도,
+                 * 목표 escape 시간이 끝났으면 정상적으로 realign 단계로 넘어간다.
                  */
                 AppAutoExitService_FinishAvoidEscape();
             }

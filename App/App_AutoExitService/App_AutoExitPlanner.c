@@ -447,27 +447,36 @@ static void AppAutoExitPlanner_SetAvoidPlan(AppAutoExitAvoidPlan *avoidPlan,
  *
  * 여기서는 정지 기준을 APP_PDW_LEVEL_DANGER로 본다.
  */
-static boolean AppAutoExitPlanner_IsAvoidSideDanger(const AppPdwState *pdw,
-                                                    AppPdwDirection sideFrontDirection,
-                                                    AppPdwDirection sideRearDirection,
-                                                    AppPdwDirection frontCornerDirection)
+/*
+ * 회피 방향의 지정된 PDW level 이상 여부 확인
+ *
+ * AVOID_ESCAPE 중에는 DANGER까지 기다리면 늦다.
+ * 따라서 caller가 targetLevel을 NEAR로 넘기면,
+ * 회피 방향이 DANGER가 되기 전에 escape를 끝내고 realign할 수 있다.
+ */
+static boolean AppAutoExitPlanner_IsAvoidSideLevelAtLeast(
+    const AppPdwState *pdw,
+    AppPdwDirection sideFrontDirection,
+    AppPdwDirection sideRearDirection,
+    AppPdwDirection frontCornerDirection,
+    AppPdwLevel targetLevel)
 {
     if(pdw == 0)
     {
         return FALSE;
     }
 
-    if(pdw->level[sideFrontDirection] >= APP_PDW_LEVEL_DANGER)
+    if(pdw->level[sideFrontDirection] >= targetLevel)
     {
         return TRUE;
     }
 
-    if(pdw->level[sideRearDirection] >= APP_PDW_LEVEL_DANGER)
+    if(pdw->level[sideRearDirection] >= targetLevel)
     {
         return TRUE;
     }
 
-    if(pdw->level[frontCornerDirection] >= APP_PDW_LEVEL_DANGER)
+    if(pdw->level[frontCornerDirection] >= targetLevel)
     {
         return TRUE;
     }
@@ -751,18 +760,27 @@ uint8 AppAutoExitPlanner_GetRealignSteer(AppAutoExitDirection exitDirection)
 }
 
 /*
- * 회피 동작 중 반대편이 위험해졌는지 확인
+ * AVOID_ESCAPE 중 escape를 끝내고 realign으로 넘어가야 하는지 판단
+ *
+ * AVOID_ESCAPE는 출차 방향이 좁을 때 반대 방향으로 피하는 단계다.
+ * 이때 회피 방향이 DANGER가 될 때까지 계속 밀면 너무 늦다.
+ *
+ * 따라서 회피 방향 측면 또는 회피 방향 앞코너가
+ * DANGER 전 단계인 NEAR 이상이 되면,
+ * escape를 조기 종료하고 realign으로 넘어간다.
  *
  * 예:
- *  - 좌측 출차를 위해 오른쪽으로 회피하는 중
- *    오른쪽 측면/오른쪽 앞 코너가 DANGER인지 확인
+ *  - 좌측 출차:
+ *    왼쪽으로 바로 나가기 어려워 오른쪽으로 escape한다.
+ *    이때 RIGHT_FRONT / RIGHT_BEHIND / FRONT_RIGHT가 NEAR 이상이면
+ *    더 이상 오른쪽으로 밀지 않고 realign한다.
  *
- *  - 우측 출차를 위해 왼쪽으로 회피하는 중
- *    왼쪽 측면/왼쪽 앞 코너가 DANGER인지 확인
- *
- * TRUE이면 회피 중 위험하므로 정지 또는 BLOCKED 처리 대상이 된다.
+ *  - 우측 출차:
+ *    오른쪽으로 바로 나가기 어려워 왼쪽으로 escape한다.
+ *    이때 LEFT_FRONT / LEFT_BEHIND / FRONT_LEFT가 NEAR 이상이면
+ *    더 이상 왼쪽으로 밀지 않고 realign한다.
  */
-boolean AppAutoExitPlanner_IsOppositeSideDangerDuringAvoid(AppAutoExitDirection exitDirection)
+boolean AppAutoExitPlanner_ShouldFinishEscapeDuringAvoid(AppAutoExitDirection exitDirection)
 {
     AppPdwState pdw;
 
@@ -779,23 +797,25 @@ boolean AppAutoExitPlanner_IsOppositeSideDangerDuringAvoid(AppAutoExitDirection 
     if(exitDirection == APP_AUTO_EXIT_DIR_LEFT)
     {
         /*
-         * 좌측 출차의 회피 방향은 오른쪽이므로
-         * 오른쪽 측면과 오른쪽 전방 코너를 확인
+         * 좌측 출차의 escape 방향은 오른쪽.
+         * 오른쪽이 NEAR 이상이면 DANGER가 되기 전에 realign한다.
          */
-        return AppAutoExitPlanner_IsAvoidSideDanger(&pdw,
-                                                    APP_PDW_DIR_RIGHT_FRONT,
-                                                    APP_PDW_DIR_RIGHT_BEHIND,
-                                                    APP_PDW_DIR_FRONT_RIGHT);
+        return AppAutoExitPlanner_IsAvoidSideLevelAtLeast(&pdw,
+                                                          APP_PDW_DIR_RIGHT_FRONT,
+                                                          APP_PDW_DIR_RIGHT_BEHIND,
+                                                          APP_PDW_DIR_FRONT_RIGHT,
+                                                          APP_PDW_LEVEL_NEAR);
     }
 
     /*
-     * 우측 출차의 회피 방향은 왼쪽이므로
-     * 왼쪽 측면과 왼쪽 전방 코너를 확인
+     * 우측 출차의 escape 방향은 왼쪽.
+     * 왼쪽이 NEAR 이상이면 DANGER가 되기 전에 realign한다.
      */
-    return AppAutoExitPlanner_IsAvoidSideDanger(&pdw,
-                                                APP_PDW_DIR_LEFT_FRONT,
-                                                APP_PDW_DIR_LEFT_BEHIND,
-                                                APP_PDW_DIR_FRONT_LEFT);
+    return AppAutoExitPlanner_IsAvoidSideLevelAtLeast(&pdw,
+                                                      APP_PDW_DIR_LEFT_FRONT,
+                                                      APP_PDW_DIR_LEFT_BEHIND,
+                                                      APP_PDW_DIR_FRONT_LEFT,
+                                                      APP_PDW_LEVEL_NEAR);
 }
 
 /*

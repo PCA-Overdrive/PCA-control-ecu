@@ -15,7 +15,7 @@ AppAutoExitStrategy AppAutoExitPlanner_SelectStrategy(AppAutoExitDirection exitD
 uint8 AppAutoExitPlanner_GetEscapeSteer(AppAutoExitDirection exitDirection);
 uint8 AppAutoExitPlanner_GetRealignSteer(AppAutoExitDirection exitDirection);
 
-boolean AppAutoExitPlanner_IsOppositeSideDangerDuringAvoid(AppAutoExitDirection exitDirection);
+boolean AppAutoExitPlanner_ShouldFinishEscapeDuringAvoid(AppAutoExitDirection exitDirection);
 
 uint32 AppAutoExitPlanner_CalcFirstStepReductionMs(uint32 escapeMs,
                                                    uint32 realignMs);
