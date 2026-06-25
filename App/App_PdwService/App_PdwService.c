@@ -25,6 +25,7 @@ void AppPdwService_Task(void *arg)
 {
     AppRpiInputState rpiInput;
     AppUltrasonicState ultrasonic;
+    AppAutoParkingState autoParkingState;
 
     (void)arg;
 
@@ -32,9 +33,10 @@ void AppPdwService_Task(void *arg)
     {
         // 수신된 최신 0x201, 0x200 메시지 가져오기
         if((AppRxService_GetRpiInput(&rpiInput) == pdPASS) &&
-           (AppRxService_GetUltrasonicState(&ultrasonic) == pdPASS))
+           (AppRxService_GetUltrasonicState(&ultrasonic) == pdPASS) &&
+           (AppRxService_GetAutoParkingState(&autoParkingState) == pdPASS))
         {
-            AppPdwService_Process(&rpiInput, &ultrasonic);
+            AppPdwService_Process(&rpiInput, &ultrasonic, &autoParkingState);
         }
 
         vTaskDelay(pdMS_TO_TICKS(APP_PDW_SERVICE_PERIOD_MS));
@@ -52,12 +54,12 @@ void AppPdwService_Process(const AppRpiInputState *rpiInput,
         return;
     }
     AppPdwService_ClearState(&nextState);
-    
+
     // PDW 활성화 여부 결정: RPi에서 PDW 스위치가 켜져 있고, 기어가 P가 아닌 경우 활성화
     nextState.enabled = (
-                    (rpiInput->pdwSwitchOn == TRUE) && (rpiInput->gear != APP_GEAR_P)
+                    ((rpiInput->pdwSwitchOn == TRUE) && (rpiInput->gear != APP_GEAR_P))
                     ||
-                    (autoParkingState != NULL && autoParkingState->autoexitCmd != APP_AUTO_EXIT_CMD_STOP && autoParkingState->autoexitCmd != APP_AUTO_EXIT_CMD_NORMAL)
+                    ((autoParkingState != NULL && autoParkingState->cmd != APP_AUTO_EXIT_CMD_STOP && autoParkingState->cmd != APP_AUTO_EXIT_CMD_NORMAL))
                     ) ? TRUE : FALSE;
 
     for(i = 0u; i < APP_PDW_DIRECTION_COUNT; i++)
