@@ -289,7 +289,7 @@ static void AppAutoExitService_StartAutoExit(AppAutoExitDirection direction)
         return;
     }
 
-    AppAutoExitMonitor_Start();
+    AppAutoExitMonitor_Start(direction);
 
     g_exitDirection = direction;
 

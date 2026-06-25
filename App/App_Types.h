@@ -51,6 +51,7 @@ typedef struct
     uint8 steeringCmd;
     AppGearStatus gear;
     boolean pdwSwitchOn;
+    sint16 lineAngleDeg;
 } AppRpiInputState;
 
 //CAN 0x200 message 저장용 구조체

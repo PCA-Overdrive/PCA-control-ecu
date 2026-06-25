@@ -21,6 +21,7 @@ BaseType_t AppRxService_GetRpiInput(AppRpiInputState *input)
     input->steeringCmd = rx.steeringCmd;
     input->gear = (AppGearStatus)rx.gearStatus;
     input->pdwSwitchOn = (rx.pcaActivated != 0u) ? TRUE : FALSE;
+    input->lineAngleDeg = rx.lineAngle;
 
     return pdPASS;
 }
