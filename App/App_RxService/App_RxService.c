@@ -20,7 +20,7 @@ BaseType_t AppRxService_GetRpiInput(AppRpiInputState *input)
     input->driveCmd = rx.driveCmd;
     input->steeringCmd = rx.steeringCmd;
     input->gear = (AppGearStatus)rx.gearStatus;
-    input->pdwSwitchOn = (rx.collisionAlarm != 0u) ? TRUE : FALSE;
+    input->pdwSwitchOn = (rx.pcaActivated != 0u) ? TRUE : FALSE;
 
     return pdPASS;
 }
@@ -71,23 +71,23 @@ BaseType_t AppRxService_GetAutoParkingState(AppAutoParkingState *state)
 
     switch(rx.autoParkingStart)
     {
-        case 0x00u:
+        case AUTO_PARKING_NORMAL:
             state->cmd = APP_AUTO_EXIT_CMD_NORMAL;
             break;
 
-        case 0x01u:
+        case AUTO_PARKING_START_STRAIGHT:
             state->cmd = APP_AUTO_EXIT_CMD_START_STRAIGHT;
             break;
 
-        case 0x02u:
+        case AUTO_PARKING_START_LEFT:
             state->cmd = APP_AUTO_EXIT_CMD_START_LEFT;
             break;
 
-        case 0x03u:
+        case AUTO_PARKING_START_RIGHT:
             state->cmd = APP_AUTO_EXIT_CMD_START_RIGHT;
             break;
 
-        case 0x04u:
+        case AUTO_PARKING_STOP:
             state->cmd = APP_AUTO_EXIT_CMD_STOP;
             break;
 

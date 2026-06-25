@@ -66,8 +66,8 @@ static void AppStatusTxService_BuildDistanceLevel(DistanceLevelCmd_t *tx,
     tx->leftFrontLevel = (uint8)pdw->level[APP_PDW_DIR_LEFT_FRONT];
     tx->frontLeftLevel = (uint8)pdw->level[APP_PDW_DIR_FRONT_LEFT];
 
-    tx->emergencyStop = (pdw->enabled == TRUE) ? 1u : 0u;
-    tx->vehicleSpeed = ultrasonic->vehicleSpeed;
+    tx->pcaActivated = (pdw->enabled == TRUE) ? 1u : 0u;
+    tx->vehicleSpeed = rpiInput->driveCmd;
     tx->gearStatus = (uint8)rpiInput->gear;
-    tx->collisionAlarm = (pdw->dangerDetected == TRUE) ? 1u : 0u;
+    tx->emergencyStop = (pdw->dangerDetected == TRUE) ? 1u : 0u;
 }

@@ -467,6 +467,7 @@ static void AppAutoExitService_HandleCommand(AppAutoExitCmd command)
 void AppAutoExitService_Init(void)
 {
     AppAutoExitMonitor_Init();
+
     AppAutoExitService_EnterIdle();
 
     g_autoExitCmd.driveCmd = APP_AUTO_EXIT_DRIVE_STOP;

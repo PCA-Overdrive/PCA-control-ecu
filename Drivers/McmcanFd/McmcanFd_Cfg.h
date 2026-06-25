@@ -1,10 +1,10 @@
-#ifndef DRIVERS_MCMCANFD_MCMCANFD_CFG_H
-#define DRIVERS_MCMCANFD_MCMCANFD_CFG_H
+#ifndef MCMCANFD_CFG_H
+#define MCMCANFD_CFG_H
 
 /* 빌드 시 하나만 활성화 */
 // #define NODE_SENSOR_ECU
-// #define NODE_JUDGMENT_ECU
 #define NODE_JUDGMENT_ECU
+// #define NODE_MOTOR_ECU
 
 /* 비트레이트 */
 #define MCMCAN_ARB_BAUDRATE       500000U
@@ -25,10 +25,10 @@
 /* 판단 ECU → Motor ECU (Classical, 2 bytes) */
 #define MSG_ID_VEHICLE_CTRL       0x100U
 
-/* 라즈베리파이 → 판단 ECU (Classical, 4 bytes) */
+/* 라즈베리파이 → 판단 ECU (Classical, 6 bytes) */  /* ← 4 → 6 */
 #define MSG_ID_VEHICLE_STATUS     0x201U
 
-/* 라즈베리파이 → 판단 ECU (Classical, 1 byte) */  /* ← 2 → 1 */
+/* 라즈베리파이 → 판단 ECU (Classical, 1 byte) */
 #define MSG_ID_AUTO_PARKING       0x300U
 
 #endif

@@ -37,11 +37,11 @@ typedef enum
 
 typedef enum
 {
-    APP_AUTO_EXIT_CMD_NORMAL         = 0x00u,
+    APP_AUTO_EXIT_CMD_NORMAL = 0x00u,
     APP_AUTO_EXIT_CMD_START_STRAIGHT = 0x01u,
-    APP_AUTO_EXIT_CMD_START_LEFT     = 0x02u,
-    APP_AUTO_EXIT_CMD_START_RIGHT    = 0x03u,
-    APP_AUTO_EXIT_CMD_STOP           = 0x04u
+    APP_AUTO_EXIT_CMD_START_LEFT = 0x02u,
+    APP_AUTO_EXIT_CMD_START_RIGHT = 0x03u,
+    APP_AUTO_EXIT_CMD_STOP = 0x04u
 } AppAutoExitCmd;
 
 //CAN 0x201 message 저장용 구조체

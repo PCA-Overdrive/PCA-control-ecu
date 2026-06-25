@@ -162,7 +162,7 @@ static void AppAutoExitMonitor_SendStatus(AppAutoExitStatus status)
 {
     ExitCompleteCmd_t tx;
 
-    tx.exitStatus = (uint8)status;
+    tx.autoparkingStatus = (uint8)status;
 
     (void)AppCan_SendExitComplete(&tx);
 }

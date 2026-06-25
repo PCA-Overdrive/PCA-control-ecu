@@ -198,7 +198,7 @@ static void sendFrame(uint32 msgId,
 #ifdef NODE_SENSOR_ECU
 void McmcanFd_SendUltrasonic(const UltrasonicDistanceCmd_t *msg)
 {
-    /* 17 bytes → DLC 20byte 프레임 (CAN FD) */
+    /* 23 bytes → DLC 12 (CAN FD) */
     sendFrame(MSG_ID_ULTRASONIC, msg, sizeof(UltrasonicDistanceCmd_t), TRUE);
 }
 #endif
@@ -209,7 +209,7 @@ void McmcanFd_SendUltrasonic(const UltrasonicDistanceCmd_t *msg)
 #ifdef NODE_JUDGMENT_ECU
 void McmcanFd_SendDistanceLevel(const DistanceLevelCmd_t *msg)
 {
-    /* 12 bytes → DLC 9 (CAN FD) */
+    /* 14 bytes → DLC 10 (CAN FD) */
     sendFrame(MSG_ID_DISTANCE_LEVEL, msg, sizeof(DistanceLevelCmd_t), TRUE);
 }
 

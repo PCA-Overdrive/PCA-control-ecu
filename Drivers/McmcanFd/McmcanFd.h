@@ -1,5 +1,5 @@
-#ifndef DRIVERS_MCMCANFD_MCMCANFD_H
-#define DRIVERS_MCMCANFD_MCMCANFD_H
+#ifndef MCMCANFD_H
+#define MCMCANFD_H
 
 #include "Ifx_Types.h"
 #include "IfxCan_Can.h"

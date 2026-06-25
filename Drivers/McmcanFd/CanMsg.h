@@ -1,5 +1,5 @@
-#ifndef DRIVERS_MCMCANFD_CAN_MSG_H
-#define DRIVERS_MCMCANFD_CAN_MSG_H
+#ifndef CAN_MSG_H
+#define CAN_MSG_H
 
 #include "Ifx_Types.h"
 
@@ -39,37 +39,36 @@ typedef struct {
  * 판단 ECU → 라즈베리파이 | CAN FD | 14 bytes → DLC 10 (16byte 프레임)
  * ================================================================ */
 typedef struct {
-    uint8 frontLevel;         /* B0  DistanceLevel_e */
-    uint8 frontRightLevel;    /* B1  */
-    uint8 rightFrontLevel;    /* B2  */
-    uint8 rightBehindLevel;   /* B3  */
-    uint8 behindRightLevel;   /* B4  */
-    uint8 behindLevel;        /* B5  */
-    uint8 behindLeftLevel;    /* B6  */
-    uint8 leftBehindLevel;    /* B7  */
-    uint8 leftFrontLevel;     /* B8  */
-    uint8 frontLeftLevel;     /* B9  */
-    uint8 emergencyStop;      /* B10 0x00: Not Activated, 0x01: Activated */
-    uint8 vehicleSpeed;       /* B11 속도 [0.1 km/h] */
-    uint8 gearStatus;         /* B12 GearStatus_e */
-    uint8 collisionAlarm;     /* B13 0x00: Off, 0x01: On */
-} DistanceLevelCmd_t;         /* 14 bytes → DLC 10 (16byte 프레임) */
+    uint8 frontLevel;        /* B0  DistanceLevel_e */
+    uint8 frontRightLevel;   /* B1  DistanceLevel_e */
+    uint8 rightFrontLevel;   /* B2  DistanceLevel_e */
+    uint8 rightBehindLevel;  /* B3  DistanceLevel_e */
+    uint8 behindRightLevel;  /* B4  DistanceLevel_e */
+    uint8 behindLevel;       /* B5  DistanceLevel_e */
+    uint8 behindLeftLevel;   /* B6  DistanceLevel_e */
+    uint8 leftBehindLevel;   /* B7  DistanceLevel_e */
+    uint8 leftFrontLevel;    /* B8  DistanceLevel_e */
+    uint8 frontLeftLevel;    /* B9  DistanceLevel_e */
+    uint8 pcaActivated;      /* B10 0x00: Not Activated, 0x01: Activated */
+    uint8 vehicleSpeed;      /* B11 속도 [0.1 km/h] */
+    uint8 gearStatus;        /* B12 GearStatus_e */
+    uint8 emergencyStop;     /* B13 0x00: Off, 0x01: On */
+} DistanceLevelCmd_t;        /* 14 bytes → DLC 10 (16byte 프레임) */
 
 /* ================================================================
  * 0x401 | ExitCompleteCmd
  * 판단 ECU → 라즈베리파이 | Classical CAN | 1 byte
  * ================================================================ */
-typedef struct
-{
-    uint8 exitStatus;
-    /*
-     * 0x00: IDLE
-     * 0x01: IN_PROGRESS
-     * 0x02: COMPLETE
-     * 0x03: BLOCKED
-     * 0x04: STOPPED
-     */
-} ExitCompleteCmd_t;
+typedef enum {
+    AUTOPARKING_STATUS_NORMAL   = 0x00,
+    AUTOPARKING_STATUS_RUNNING  = 0x01,
+    AUTOPARKING_STATUS_COMPLETE = 0x02,
+    AUTOPARKING_STATUS_STOPPED  = 0x03
+} AutoparkingStatus_e;
+
+typedef struct {
+    uint8 autoparkingStatus; /* B0  AutoparkingStatus_e */
+} ExitCompleteCmd_t;         /* 1 byte */
 
 /* ================================================================
  * 0x100 | VehicleControlCmd
@@ -95,15 +94,24 @@ typedef struct {
     uint8 driveCmd;          /* B0  0~255 주행 명령 */
     uint8 steeringCmd;       /* B1  0~255 조향 명령 */
     uint8 gearStatus;        /* B2  GearStatus_e */
-    uint8 collisionAlarm;    /* B3  0x00: Off, 0x01: On */
-} VehicleStatusCmd_t;
+    uint8 pcaActivated;      /* B3  0x00: Not Activated, 0x01: Activated */
+    sint16 lineAngle;        /* B4~B5  각도 (-180 ~ 180) */
+} VehicleStatusCmd_t;        /* 6 bytes */
 
 /* ================================================================
  * 0x300 | AutoParkingCmd
  * 라즈베리파이 → 판단 ECU | Classical CAN | 1 byte
  * ================================================================ */
+typedef enum {
+    AUTO_PARKING_NORMAL         = 0x00,
+    AUTO_PARKING_START_STRAIGHT = 0x01,
+    AUTO_PARKING_START_LEFT     = 0x02,
+    AUTO_PARKING_START_RIGHT    = 0x03,
+    AUTO_PARKING_STOP           = 0x04
+} AutoParkingStart_e;
+
 typedef struct {
-    uint8 autoParkingStart;   /* B0  0x00: Stop, 0x01: Start */
-} AutoParkingCmd_t;           /* 1 byte */
+    uint8 autoParkingStart;  /* B0  AutoParkingStart_e */
+} AutoParkingCmd_t;          /* 1 byte */
 
 #endif /* CAN_MSG_H */
