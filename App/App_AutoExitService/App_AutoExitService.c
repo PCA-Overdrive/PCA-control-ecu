@@ -481,6 +481,70 @@ static void AppAutoExitService_StartAvoidEscape(void)
                                   AppAutoExitPlanner_GetEscapeSteer(g_autoExit.direction));
 }
 
+static void AppAutoExitService_AdjustRealignTimeByEscapeElapsed(void)
+{
+    uint32 plannedEscapeMs;
+    uint32 plannedRealignMs;
+    uint32 actualEscapeMs;
+    uint32 scaledRealignMs;
+
+    plannedEscapeMs = g_autoExit.avoid.escapeMs;
+    plannedRealignMs = g_autoExit.avoid.realignMs;
+    actualEscapeMs = g_autoExit.avoid.escapeElapsedMs;
+
+    /*
+     * 회피 계획이 없거나 값이 비정상인 경우 방어
+     */
+    if((plannedEscapeMs == 0u) || (plannedRealignMs == 0u))
+    {
+        return;
+    }
+
+    /*
+     * escape를 계획 시간만큼 수행했거나,
+     * task tick 오차로 계획 시간보다 길게 수행했다면
+     * realign은 기존 계획 시간을 그대로 사용한다.
+     */
+    if(actualEscapeMs >= plannedEscapeMs)
+    {
+        return;
+    }
+
+    /*
+     * escape가 조기 종료된 경우,
+     * 실제 escape 수행 비율만큼 realign 시간도 줄인다.
+     *
+     * 예:
+     * plannedEscapeMs  = 1500
+     * plannedRealignMs = 1800
+     * actualEscapeMs   = 500
+     *
+     * scaledRealignMs  = 1800 * 500 / 1500 = 600
+     */
+    scaledRealignMs =
+        (plannedRealignMs * actualEscapeMs) / plannedEscapeMs;
+
+    /*
+     * 너무 짧은 realign은 조향 정렬이 부족할 수 있으므로
+     * 최소 시간을 보장한다.
+     */
+    if(scaledRealignMs < APP_AUTO_EXIT_AVOID_REALIGN_MIN_MS)
+    {
+        scaledRealignMs = APP_AUTO_EXIT_AVOID_REALIGN_MIN_MS;
+    }
+
+    /*
+     * 방어 코드.
+     * 비율 계산 결과가 계획 realign보다 커지지 않게 제한한다.
+     */
+    if(scaledRealignMs > plannedRealignMs)
+    {
+        scaledRealignMs = plannedRealignMs;
+    }
+
+    g_autoExit.avoid.realignMs = scaledRealignMs;
+}
+
 /*
  * 회피 escape 종료
  *
@@ -491,6 +555,12 @@ static void AppAutoExitService_FinishAvoidEscape(void)
 {
     g_autoExit.avoid.escapeElapsedMs =
         AppAutoExitService_GetElapsedMs(g_autoExit.avoid.escapeStartTick);
+
+    /*
+     * escape가 조기 종료된 경우,
+     * 실제 escape 수행 시간에 맞춰 realign 시간도 줄인다.
+     */
+    AppAutoExitService_AdjustRealignTimeByEscapeElapsed();
 
     g_autoExit.state = APP_AUTO_EXIT_STATE_AVOID_STOP_1;
     g_autoExit.stateStartTick = xTaskGetTickCount();
@@ -678,29 +748,26 @@ static void AppAutoExitService_ServiceState(void)
 
         case APP_AUTO_EXIT_STATE_AVOID_ESCAPE:
             /*
-             * AVOID_ESCAPE 중에는 회피 방향이 DANGER가 될 때까지 기다리면 늦다.
+             * DANGER는 최소 escape 시간을 기다리지 않는다.
+             * 이미 너무 가까운 상태이므로 더 이상 escape 방향으로 밀지 않고
+             * 즉시 STOP_1 → REALIGN으로 넘어간다.
              *
-             * 양옆에 차량이 있는 상황에서는 반대 방향으로 피하다가
-             * 회피 방향 센서가 DANGER가 될 수 있다.
-             * 이때 BLOCKED로 멈추면 정상적인 출차 상황에서도 출차가 중단된다.
-             *
-             * 따라서 최소 escape 시간은 보장하되,
-             * 그 이후 회피 방향이 NEAR 이상이면 DANGER가 되기 전에
-             * escape를 조기 종료하고 STOP_1 → REALIGN으로 넘어간다.
+             * NEAR는 DANGER 전 단계이므로 최소 escape 시간 이후에만
+             * 조기 realign 조건으로 사용한다.
              */
-            if((AppAutoExitService_HasElapsed(g_autoExit.avoid.escapeStartTick,
-                                              APP_AUTO_EXIT_AVOID_ESCAPE_MIN_MS) == TRUE) &&
-               (AppAutoExitPlanner_ShouldFinishEscapeDuringAvoid(g_autoExit.direction) == TRUE))
+            if(AppAutoExitPlanner_IsEscapeSideDangerDuringAvoid(g_autoExit.direction) == TRUE)
+            {
+                AppAutoExitService_FinishAvoidEscape();
+            }
+            else if((AppAutoExitService_HasElapsed(g_autoExit.avoid.escapeStartTick,
+                                                   APP_AUTO_EXIT_AVOID_ESCAPE_MIN_MS) == TRUE) &&
+                    (AppAutoExitPlanner_ShouldFinishEscapeDuringAvoid(g_autoExit.direction) == TRUE))
             {
                 AppAutoExitService_FinishAvoidEscape();
             }
             else if(AppAutoExitService_HasElapsed(g_autoExit.avoid.escapeStartTick,
                                                   g_autoExit.avoid.escapeMs) == TRUE)
             {
-                /*
-                 * 회피 방향이 NEAR 이상이 되지 않아도,
-                 * 목표 escape 시간이 끝났으면 정상적으로 realign 단계로 넘어간다.
-                 */
                 AppAutoExitService_FinishAvoidEscape();
             }
             break;

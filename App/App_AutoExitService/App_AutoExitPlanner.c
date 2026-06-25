@@ -55,6 +55,20 @@ typedef struct
 {
     AppAutoExitSideInfo exitSide;
     AppAutoExitSideInfo oppositeSide;
+
+    /*
+     * AVOID escape 방향의 전방 코너 거리
+     *
+     * 좌측 출차:
+     *  - 오른쪽으로 escape하므로 FRONT_RIGHT
+     *
+     * 우측 출차:
+     *  - 왼쪽으로 escape하므로 FRONT_LEFT
+     *
+     * oppositeSide의 front/rear에는 측면 센서만 들어가므로,
+     * 전방 코너 raw CRITICAL 판단을 위해 별도로 저장한다.
+     */
+    uint16 oppositeFrontCornerMm;
 } AppAutoExitSideContext;
 
 /*
@@ -369,6 +383,13 @@ static AppAutoExitSideContext AppAutoExitPlanner_MakeSideContext(
         context.oppositeSide = AppAutoExitPlanner_MakeSideInfo(
             pdw->distanceMm[APP_PDW_DIR_RIGHT_FRONT],
             pdw->distanceMm[APP_PDW_DIR_RIGHT_BEHIND]);
+
+        /*
+         * 좌측 출차의 escape 방향은 오른쪽이므로
+         * 반대편 앞코너는 FRONT_RIGHT.
+         */
+        context.oppositeFrontCornerMm =
+            pdw->distanceMm[APP_PDW_DIR_FRONT_RIGHT];
     }
     else
     {
@@ -379,6 +400,13 @@ static AppAutoExitSideContext AppAutoExitPlanner_MakeSideContext(
         context.oppositeSide = AppAutoExitPlanner_MakeSideInfo(
             pdw->distanceMm[APP_PDW_DIR_LEFT_FRONT],
             pdw->distanceMm[APP_PDW_DIR_LEFT_BEHIND]);
+
+        /*
+         * 우측 출차의 escape 방향은 왼쪽이므로
+         * 반대편 앞코너는 FRONT_LEFT.
+         */
+        context.oppositeFrontCornerMm =
+            pdw->distanceMm[APP_PDW_DIR_FRONT_LEFT];
     }
 
     return context;
@@ -473,6 +501,112 @@ static boolean AppAutoExitPlanner_IsAvoidSideLevelAtLeast(
     }
 
     return FALSE;
+}
+
+/*
+ * escape 방향이 이미 DANGER인지 확인
+ *
+ * AVOID 시작 가능 여부 판단에 사용한다.
+ *
+ * 여기서는 NEAR가 아니라 DANGER만 본다.
+ * NEAR까지 막아버리면 양옆에 차가 있는 일반적인 출차 상황에서
+ * AVOID를 시작하지 못한다.
+ */
+static boolean AppAutoExitPlanner_IsEscapeSideDanger(
+    const AppPdwState *pdw,
+    AppAutoExitDirection exitDirection)
+{
+    if(pdw == 0)
+    {
+        return TRUE;
+    }
+
+    if(exitDirection == APP_AUTO_EXIT_DIR_LEFT)
+    {
+        /*
+         * 좌측 출차는 오른쪽으로 escape한다.
+         * 따라서 오른쪽 측면과 오른쪽 앞코너가 이미 DANGER인지 확인한다.
+         */
+        return AppAutoExitPlanner_IsAvoidSideLevelAtLeast(pdw,
+                                                          APP_PDW_DIR_RIGHT_FRONT,
+                                                          APP_PDW_DIR_RIGHT_BEHIND,
+                                                          APP_PDW_DIR_FRONT_RIGHT,
+                                                          APP_PDW_LEVEL_DANGER);
+    }
+
+    if(exitDirection == APP_AUTO_EXIT_DIR_RIGHT)
+    {
+        /*
+         * 우측 출차는 왼쪽으로 escape한다.
+         * 따라서 왼쪽 측면과 왼쪽 앞코너가 이미 DANGER인지 확인한다.
+         */
+        return AppAutoExitPlanner_IsAvoidSideLevelAtLeast(pdw,
+                                                          APP_PDW_DIR_LEFT_FRONT,
+                                                          APP_PDW_DIR_LEFT_BEHIND,
+                                                          APP_PDW_DIR_FRONT_LEFT,
+                                                          APP_PDW_LEVEL_DANGER);
+    }
+
+    return TRUE;
+}
+
+/*
+ * 반대편으로 escape를 시작할 수 있는지 판단
+ *
+ * isFarSafe는 요구하지 않는다.
+ * isFarSafe는 "완전히 넓다"는 뜻이라 NORMAL 판정에는 적합하지만,
+ * AVOID 가능 조건으로 쓰기에는 너무 빡세다.
+ *
+ * AVOID 시작 불가 조건:
+ *  1. 반대편 측면 최소 거리가 CRITICAL 미만
+ *  2. escape 방향 측면 또는 앞코너가 이미 DANGER
+ *
+ * 그 외에는 일단 AVOID 가능으로 본다.
+ * escape 중 NEAR 이상이 되면 ShouldFinishEscapeDuringAvoid()에서
+ * realign으로 넘어간다.
+ */
+static boolean AppAutoExitPlanner_IsOppositeSideAvoidable(
+    const AppPdwState *pdw,
+    const AppAutoExitSideInfo *oppositeSide,
+    uint16 oppositeFrontCornerMm,
+    AppAutoExitDirection exitDirection)
+{
+    if(oppositeSide == 0)
+    {
+        return FALSE;
+    }
+
+    /*
+     * 반대편 측면 자체가 너무 가까우면 escape할 공간이 없다고 본다.
+     * 여기서 보는 값은 RIGHT_FRONT/RIGHT_BEHIND 또는 LEFT_FRONT/LEFT_BEHIND.
+     */
+    if(oppositeSide->minMm < APP_AUTO_EXIT_SIDE_CRITICAL_MM)
+    {
+        return FALSE;
+    }
+
+    /*
+     * 반대편 앞코너 raw distance도 CRITICAL이면 escape 시작 불가.
+     *
+     * 기존에는 FRONT_LEFT / FRONT_RIGHT를 PDW DANGER level로만 봤다.
+     * 그런데 DANGER threshold보다 CRITICAL threshold가 더 보수적일 수 있으므로,
+     * raw distance 기준으로도 한 번 더 막는다.
+     */
+    if(oppositeFrontCornerMm < APP_AUTO_EXIT_SIDE_CRITICAL_MM)
+    {
+        return FALSE;
+    }
+
+    /*
+     * 반대편 측면 또는 반대편 앞코너가 이미 DANGER이면
+     * escape 시작 자체가 위험하므로 BLOCKED.
+     */
+    if(AppAutoExitPlanner_IsEscapeSideDanger(pdw, exitDirection) == TRUE)
+    {
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 /*
@@ -588,11 +722,12 @@ boolean AppAutoExitPlanner_IsStepSafetyDanger(const AppAutoExitMotionStep *step)
  *     - SAFE가 아니면 NORMAL 출차는 위험하거나 애매하다고 판단
  *
  *  6. 출차 방향이 SAFE가 아닌 경우,
- *     반대편이 충분히 안전하면 AVOID_AND_RESUME
+ *     반대편이 CRITICAL 또는 DANGER가 아니면 AVOID_AND_RESUME
+ *     - 반대편이 완전히 넓을 필요는 없음
  *     - risk 종류에 따라 SHORT / LONG 회피량 결정
  *
  *  7. 출차 방향도 SAFE가 아니고,
- *     반대편도 충분히 안전하지 않으면 BLOCKED
+ *     반대편도 CRITICAL 또는 DANGER이면 BLOCKED
  */
 AppAutoExitStrategy AppAutoExitPlanner_SelectStrategy(AppAutoExitDirection exitDirection,
                                                       AppAutoExitAvoidPlan *avoidPlan)
@@ -685,10 +820,20 @@ AppAutoExitStrategy AppAutoExitPlanner_SelectStrategy(AppAutoExitDirection exitD
     }
 
     /*
-     * 출차 방향이 위험하거나 애매한데,
-     * 반대편이 충분히 안전하면 AVOID.
+     * 출차 방향이 위험하거나 애매한 상태다.
+     *
+     * 여기서 반대편이 완전히 넓은지(isFarSafe)를 보면 안 된다.
+     * isFarSafe는 NORMAL 판단용 기준이고, AVOID 가능 조건으로는 너무 빡세다.
+     *
+     * 반대편이 CRITICAL 또는 DANGER가 아니면 일단 AVOID를 시작한다.
+     * 이후 escape 중 반대편이 NEAR 이상이 되면
+     * AppAutoExitPlanner_ShouldFinishEscapeDuringAvoid()에서
+     * DANGER가 되기 전에 realign으로 넘어간다.
      */
-    if(sideContext.oppositeSide.isFarSafe == TRUE)
+    if(AppAutoExitPlanner_IsOppositeSideAvoidable(&pdw,
+                                                  &sideContext.oppositeSide,
+                                                  sideContext.oppositeFrontCornerMm,
+                                                  exitDirection) == TRUE)
     {
         if(avoidLevel == APP_AUTO_EXIT_AVOID_NONE)
         {
@@ -705,7 +850,7 @@ AppAutoExitStrategy AppAutoExitPlanner_SelectStrategy(AppAutoExitDirection exitD
 
     /*
      * 출차 방향도 SAFE가 아니고,
-     * 반대편도 충분히 안전하지 않으면 BLOCKED.
+     * 반대편도 CRITICAL 또는 DANGER라 escape를 시작할 수 없으면 BLOCKED.
      */
     return APP_AUTO_EXIT_STRATEGY_BLOCKED;
 }
@@ -748,6 +893,33 @@ uint8 AppAutoExitPlanner_GetRealignSteer(AppAutoExitDirection exitDirection)
     }
 
     return APP_AUTO_EXIT_REALIGN_RIGHT_STEER;
+}
+
+/*
+ * AVOID_ESCAPE 중 회피 방향이 DANGER인지 확인
+ *
+ * DANGER이면 최소 escape 시간을 기다리지 않고
+ * 즉시 escape를 종료하고 realign으로 넘어가야 한다.
+ *
+ * 여기서 BLOCKED로 보내지 않는 이유:
+ * - escape 방향이 DANGER가 됐다는 것은 더 이상 그 방향으로 밀면 안 된다는 뜻
+ * - 정상적인 양옆 차량 출차 상황에서는 바로 realign으로 돌아오는 것이 맞음
+ */
+boolean AppAutoExitPlanner_IsEscapeSideDangerDuringAvoid(AppAutoExitDirection exitDirection)
+{
+    AppPdwState pdw;
+
+    if(AppPdwService_GetState(&pdw) != pdPASS)
+    {
+        return FALSE;
+    }
+
+    if(pdw.enabled == FALSE)
+    {
+        return FALSE;
+    }
+
+    return AppAutoExitPlanner_IsEscapeSideDanger(&pdw, exitDirection);
 }
 
 /*

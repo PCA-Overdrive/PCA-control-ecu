@@ -22,6 +22,8 @@ boolean AppAutoExitPlanner_IsRealignSideDangerDuringAvoid(AppAutoExitDirection e
 uint32 AppAutoExitPlanner_CalcFirstStepReductionMs(uint32 escapeMs,
                                                    uint32 realignMs);
 
+boolean AppAutoExitPlanner_IsEscapeSideDangerDuringAvoid(AppAutoExitDirection exitDirection);
+
 void AppAutoExitMonitor_Init(void);
 void AppAutoExitMonitor_Start(AppAutoExitDirection direction);
 void AppAutoExitMonitor_SetIdle(void);
