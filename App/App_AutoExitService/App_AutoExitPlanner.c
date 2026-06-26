@@ -372,18 +372,82 @@ boolean AppAutoExitPlanner_IsStepSafetyDanger(const AppAutoExitMotionStep *step)
         return FALSE;
     }
 
+    /*
+     * 전진 중 안전 체크
+     *
+     * 기존:
+     * - FRONT
+     * - FRONT_LEFT
+     * - FRONT_RIGHT
+     *
+     * 보강:
+     * - 좌회전 전진이면 LEFT_FRONT도 확인
+     * - 우회전 전진이면 RIGHT_FRONT도 확인
+     */
     if(step->driveCmd < APP_AUTO_EXIT_DRIVE_STOP)
     {
-        return ((pdw.level[APP_PDW_DIR_FRONT] >= APP_PDW_LEVEL_DANGER) ||
-                (pdw.level[APP_PDW_DIR_FRONT_LEFT] >= APP_PDW_LEVEL_DANGER) ||
-                (pdw.level[APP_PDW_DIR_FRONT_RIGHT] >= APP_PDW_LEVEL_DANGER)) ? TRUE : FALSE;
+        if((pdw.level[APP_PDW_DIR_FRONT] >= APP_PDW_LEVEL_DANGER) ||
+           (pdw.level[APP_PDW_DIR_FRONT_LEFT] >= APP_PDW_LEVEL_DANGER) ||
+           (pdw.level[APP_PDW_DIR_FRONT_RIGHT] >= APP_PDW_LEVEL_DANGER))
+        {
+            return TRUE;
+        }
+
+        if(step->steeringCmd < APP_AUTO_EXIT_STEER_CENTER)
+        {
+            if(pdw.level[APP_PDW_DIR_LEFT_FRONT] >= APP_PDW_LEVEL_DANGER)
+            {
+                return TRUE;
+            }
+        }
+        else if(step->steeringCmd > APP_AUTO_EXIT_STEER_CENTER)
+        {
+            if(pdw.level[APP_PDW_DIR_RIGHT_FRONT] >= APP_PDW_LEVEL_DANGER)
+            {
+                return TRUE;
+            }
+        }
+
+        return FALSE;
     }
 
+    /*
+     * 후진 중 안전 체크
+     *
+     * 기존:
+     * - BEHIND
+     * - BEHIND_LEFT
+     * - BEHIND_RIGHT
+     *
+     * 보강:
+     * - 좌회전 후진이면 LEFT_BEHIND도 확인
+     * - 우회전 후진이면 RIGHT_BEHIND도 확인
+     */
     if(step->driveCmd > APP_AUTO_EXIT_DRIVE_STOP)
     {
-        return ((pdw.level[APP_PDW_DIR_BEHIND] >= APP_PDW_LEVEL_DANGER) ||
-                (pdw.level[APP_PDW_DIR_BEHIND_LEFT] >= APP_PDW_LEVEL_DANGER) ||
-                (pdw.level[APP_PDW_DIR_BEHIND_RIGHT] >= APP_PDW_LEVEL_DANGER)) ? TRUE : FALSE;
+        if((pdw.level[APP_PDW_DIR_BEHIND] >= APP_PDW_LEVEL_DANGER) ||
+           (pdw.level[APP_PDW_DIR_BEHIND_LEFT] >= APP_PDW_LEVEL_DANGER) ||
+           (pdw.level[APP_PDW_DIR_BEHIND_RIGHT] >= APP_PDW_LEVEL_DANGER))
+        {
+            return TRUE;
+        }
+
+        if(step->steeringCmd < APP_AUTO_EXIT_STEER_CENTER)
+        {
+            if(pdw.level[APP_PDW_DIR_LEFT_BEHIND] >= APP_PDW_LEVEL_DANGER)
+            {
+                return TRUE;
+            }
+        }
+        else if(step->steeringCmd > APP_AUTO_EXIT_STEER_CENTER)
+        {
+            if(pdw.level[APP_PDW_DIR_RIGHT_BEHIND] >= APP_PDW_LEVEL_DANGER)
+            {
+                return TRUE;
+            }
+        }
+
+        return FALSE;
     }
 
     return FALSE;

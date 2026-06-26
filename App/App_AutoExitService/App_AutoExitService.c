@@ -471,20 +471,12 @@ static void AppAutoExitService_ServiceProfile(void)
         /*
          * AVOID 후 마지막 회전 step은 시간으로 끝내지 않는다.
          * IMU 목표 yaw에 도달해야 다음 step으로 넘어간다.
+         *
+         * timeout 없이 yaw 도달 전까지 계속 현재 회전 명령을 유지한다.
          */
         if(AppAutoExitMonitor_IsTargetYawReached() == TRUE)
         {
             stepDone = TRUE;
-        }
-        else if(AppAutoExitService_HasElapsed(g_autoExit.profile.startTick,
-                                              currentStepDurationMs) == TRUE)
-        {
-            /*
-             * 시간은 완료 조건이 아니라 안전 timeout으로만 사용한다.
-             * 목표 yaw에 도달하지 못한 채 timeout이 지나면 실패로 본다.
-             */
-            AppAutoExitService_EnterBlocked();
-            return;
         }
         else
         {
